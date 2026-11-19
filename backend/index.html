@@ -1,313 +1,239 @@
 
-require("dotenv").config();
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ESPESCORE - Football Live</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#151515;color:white;font-family:Arial,sans-serif}
+header{background:#d71920;padding:20px;text-align:center;border-bottom:4px solid #ffd43b}
+header h1{margin:0;font-size:28px}
+header p{margin:7px 0 0;color:#ffe5a0}
+nav{display:flex;gap:10px;padding:15px;justify-content:center;flex-wrap:wrap}
+button{background:#252525;color:white;border:1px solid #ffd43b;padding:11px 20px;border-radius:8px;font-weight:bold}
+button.active{background:#ffd43b;color:#151515}
+#date{background:#252525;color:white;padding:10px;border:1px solid #ffd43b;border-radius:8px}
+main{max-width:850px;margin:auto;padding:12px}
+h2{color:#ffd43b}
+.league{background:#252525;margin:15px 0;border-radius:10px;overflow:hidden}
+.league-title{padding:12px;background:#333;font-weight:bold;color:#ffd43b}
+.match{display:flex;align-items:center;justify-content:space-between;padding:14px 10px;border-bottom:1px solid #444;gap:8px;cursor:pointer}
+.match:last-child{border:0}
+.team{display:flex;align-items:center;gap:7px;flex:1;min-width:0}
+.team.away{justify-content:flex-end;text-align:right}
+.team img{width:27px;height:27px;object-fit:contain}
+.team span{font-size:13px;overflow-wrap:anywhere}
+.score{text-align:center;min-width:75px;font-weight:bold;color:#ffd43b}
+.status{font-size:11px;color:#aaa;margin-top:5px}
+.live{color:#ff4545}
+#details{display:none;background:#252525;padding:18px;border-radius:12px;margin-top:15px}
+#details h2{text-align:center}
+.scoreboard{display:flex;justify-content:space-around;align-items:center;text-align:center;gap:10px;margin:25px 0}
+.scoreboard img{width:55px;height:55px;object-fit:contain}
+.scoreboard strong{font-size:25px;color:#ffd43b}
+.event{padding:12px;border-bottom:1px solid #444}
+.muted{text-align:center;color:#aaa;padding:25px}
+.back{background:#d71920;border:0;margin-bottom:15px}
+</style>
+</head>
+<body>
+<header>
+<h1>ESPESCORE ⚽</h1>
+<p>● FOOTBALL LIVE</p>
+</header>
 
-const express = require("express");
-const cors = require("cors");
-const path = require("path");
+<nav id="nav">
+<button id="todayBtn" class="active" onclick="showToday()">Today</button>
+<button id="liveBtn" onclick="showLive()">🔴 Live</button>
+<input id="date" type="date">
+</nav>
 
-const app = express();
-const PORT = process.env.PORT || 3000;
+<main>
+<section id="matches">
+<h2 id="pageTitle">Today's Matches</h2>
+<div id="matchList" class="muted">Loading matches...</div>
+</section>
 
-const API_KEY = process.env.SPORTAPI_KEY;
-const API_URL = "https://sportapi.ai/api";
+<section id="details">
+<button class="back" onclick="backToMatches()">← Back to matches</button>
+<div id="detailContent"></div>
+</section>
+</main>
 
-app.use(cors());
-app.use(express.json());
+<script>
+const API = "";
+const matchList = document.getElementById("matchList");
+const details = document.getElementById("details");
+const matchesSection = document.getElementById("matches");
+const dateInput = document.getElementById("date");
 
-// تخزين الشعارات مؤقتاً
-const logoCache = new Map();
-const LOGO_CACHE_TIME = 7 * 24 * 60 * 60 * 1000;
+let currentMode = "today";
+let refreshTimer = null;
 
-async function sportRequest(endpoint) {
-  if (!API_KEY) {
-    throw new Error("SPORTAPI_KEY is not configured");
-  }
-
-  const response = await fetch(`${API_URL}${endpoint}`, {
-    headers: {
-      "X-Api-Key": API_KEY
-    },
-    signal: AbortSignal.timeout(15000)
-  });
-
-  const data = await response.json();
-
-  if (!response.ok || data.success === false) {
-    throw new Error(data.error || "SportAPI request failed");
-  }
-
-  return data;
+function todayDate(){
+const d = new Date();
+return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,10);
 }
 
-function mapStatus(status, minute) {
-  const value = String(status || "").toUpperCase();
+dateInput.value = todayDate();
 
-  const codes = {
-    SCHEDULED: "NS",
-    LIVE: "LIVE",
-    FT: "FT",
-    AET: "AET",
-    PENS: "PEN",
-    POSTPONED: "PST",
-    CANCELLED: "CANC",
-    SUSPENDED: "SUSP"
-  };
-
-  let elapsed = null;
-
-  if (minute && minute !== "HT") {
-    const parsed = parseInt(minute, 10);
-    if (!Number.isNaN(parsed)) elapsed = parsed;
-  }
-
-  return {
-    short: minute === "HT" ? "HT" : (codes[value] || value),
-    long: value,
-    elapsed
-  };
+function safe(value){
+return String(value ?? "").replace(/[&<>"']/g,c=>({
+"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+}[c]));
 }
 
-// تحويل أحداث المباراة
-function mapEvent(event) {
-  return {
-    id: event.id,
-    type: event.event_type || "other",
-    team: event.team_side || "",
-    player: event.player_name || "",
-    minute: event.minute || "",
-    detail: event.extra_info || ""
-  };
+function statusText(match){
+const s=match.fixture?.status || {};
+return s.short || s.long || "NS";
 }
 
-function mapFixture(match) {
-  return {
-    fixture: {
-      id: match.id,
-      date: match.kickoff_utc || match.datetime,
-      status: mapStatus(match.status, match.minute)
-    },
+async function loadMatches(){
+if(currentMode==="details") return;
 
-    league: {
-      id: match.league_id,
-      name: match.league_name || "Unknown League",
-      country: match.league_zone || match.league_geo || ""
-    },
+matchList.innerHTML='<div class="muted">Loading matches...</div>';
 
-    teams: {
-      home: {
-        id: match.home_id,
-        name: match.home_team || "Home",
-        logo: match.home_id
-          ? `/team-logo/${match.home_id}`
-          : ""
-      },
+try{
+let url=currentMode==="live"
+? "/live"
+: "/fixtures?date="+encodeURIComponent(dateInput.value);
 
-      away: {
-        id: match.away_id,
-        name: match.away_team || "Away",
-        logo: match.away_id
-          ? `/team-logo/${match.away_id}`
-          : ""
-      }
-    },
+const response=await fetch(API+url);
+if(!response.ok) throw new Error("Server error");
 
-    goals: {
-      home: match.home_score ?? null,
-      away: match.away_score ?? null
-    },
-
-    events: Array.isArray(match.events)
-      ? match.events.map(mapEvent)
-      : []
-  };
+const data=await response.json();
+renderMatches(data.response || []);
+}catch(error){
+matchList.innerHTML='<div class="muted">Unable to load matches. Please try again.</div>';
+}
 }
 
-function tunisianDate() {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Africa/Tunis",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit"
-  }).format(new Date());
+function renderMatches(matches){
+if(!matches.length){
+matchList.innerHTML='<div class="muted">No matches found.</div>';
+return;
 }
 
-// مباريات اليوم
-app.get("/fixtures", async (req, res) => {
-  try {
-    const date = req.query.date;
+const groups={};
 
-    if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-      return res.status(400).json({
-        error: "Invalid date"
-      });
-    }
-
-    const data = await sportRequest(
-      `/fixtures/date/${encodeURIComponent(date)}`
-    );
-
-    const matches = Array.isArray(data.data) ? data.data : [];
-
-    res.json({
-      response: matches.map(mapFixture)
-    });
-
-  } catch (error) {
-    console.error("Fixtures error:", error.message);
-
-    res.status(500).json({
-      error: "Unable to load matches"
-    });
-  }
+matches.forEach((m,i)=>{
+const league=m.league?.name || "Other matches";
+const country=m.league?.country || "";
+if(!groups[league]) groups[league]={country,matches:[]};
+groups[league].matches.push({...m,_index:i});
 });
 
-// المباريات المباشرة
-app.get("/live", async (req, res) => {
-  try {
-    const date = tunisianDate();
+matchList.innerHTML=Object.entries(groups).map(([league,g])=>`
+<div class="league">
+<div class="league-title">🏆 ${safe(league)} · ${safe(g.country)}</div>
+${g.matches.map(m=>{
+const home=m.teams?.home || {};
+const away=m.teams?.away || {};
+const status=statusText(m);
+const scoreHome=m.goals?.home;
+const scoreAway=m.goals?.away;
+return `
+<div class="match" onclick="openDetails(${Number(m.fixture?.id)})">
+<div class="team">
+${home.logo?`<img src="${safe(home.logo)}" alt="">`:""}
+<span>${safe(home.name || "Home")}</span>
+</div>
+<div class="score">
+${scoreHome??"-"} : ${scoreAway??"-"}
+<div class="status ${status==="LIVE"?"live":""}">${safe(status)}</div>
+</div>
+<div class="team away">
+<span>${safe(away.name || "Away")}</span>
+${away.logo?`<img src="${safe(away.logo)}" alt="">`:""}
+</div>
+</div>`;
+}).join("")}
+</div>`).join("");
+}
 
-    const data = await sportRequest(
-      `/fixtures/date/${date}`
-    );
+async function openDetails(id){
+if(!Number.isSafeInteger(id)||id<=0) return;
 
-    const matches = Array.isArray(data.data) ? data.data : [];
+currentMode="details";
+clearInterval(refreshTimer);
+matchesSection.style.display="none";
+document.getElementById("nav").style.display="none";
+details.style.display="block";
+document.getElementById("detailContent").innerHTML='<div class="muted">Loading match details...</div>';
 
-    const liveMatches = matches.filter(match =>
-      String(match.status).toUpperCase() === "LIVE"
-    );
+try{
+const response=await fetch("/fixture/"+id);
+if(!response.ok) throw new Error("Details unavailable");
 
-    res.json({
-      response: liveMatches.map(mapFixture)
-    });
+const data=await response.json();
+const m=data.response?.[0];
 
-  } catch (error) {
-    console.error("Live error:", error.message);
+if(!m) throw new Error("Match not found");
 
-    res.status(500).json({
-      error: "Unable to load live matches"
-    });
-  }
+const home=m.teams?.home || {};
+const away=m.teams?.away || {};
+
+const events=m.events || [];
+
+document.getElementById("detailContent").innerHTML=`
+<h2>${safe(m.league?.name || "Match Details")}</h2>
+<div class="scoreboard">
+<div>${home.logo?`<img src="${safe(home.logo)}">`:""}<p>${safe(home.name)}</p></div>
+<strong>${m.goals?.home??"-"} - ${m.goals?.away??"-"}</strong>
+<div>${away.logo?`<img src="${safe(away.logo)}">`:""}<p>${safe(away.name)}</p></div>
+</div>
+<p class="muted">${safe(statusText(m))}</p>
+<h2>Match Events</h2>
+${events.length?events.map(e=>`
+<div class="event">
+${safe(e.minute)}' · ${safe(e.type)} · ${safe(e.player)}
+<br><small>${safe(e.team)} ${safe(e.detail)}</small>
+</div>`).join(""):'<div class="muted">No events available.</div>'}
+`;
+}catch(error){
+document.getElementById("detailContent").innerHTML=
+'<div class="muted">Unable to load match details.</div>';
+}
+}
+
+function backToMatches(){
+details.style.display="none";
+matchesSection.style.display="block";
+document.getElementById("nav").style.display="flex";
+currentMode="today";
+showToday();
+}
+
+function setActive(id){
+document.getElementById("todayBtn").classList.remove("active");
+document.getElementById("liveBtn").classList.remove("active");
+document.getElementById(id).classList.add("active");
+}
+
+function showToday(){
+currentMode="today";
+setActive("todayBtn");
+document.getElementById("pageTitle").textContent="Today's Matches";
+loadMatches();
+}
+
+function showLive(){
+currentMode="live";
+setActive("liveBtn");
+document.getElementById("pageTitle").textContent="Live Matches";
+loadMatches();
+}
+
+dateInput.addEventListener("change",()=>{
+if(currentMode!=="live") showToday();
 });
 
-// شعارات الفرق
-app.get("/team-logo/:id", async (req, res) => {
-  try {
-    const teamId = Number(req.params.id);
-
-    if (!Number.isSafeInteger(teamId) || teamId <= 0) {
-      return res.status(400).end();
-    }
-
-    const cached = logoCache.get(teamId);
-
-    if (cached && cached.expiresAt > Date.now()) {
-      res.set("Cache-Control", "public, max-age=604800");
-      res.set("Content-Type", cached.contentType);
-      return res.send(cached.buffer);
-    }
-
-    if (!API_KEY) {
-      throw new Error("SPORTAPI_KEY is not configured");
-    }
-
-    const response = await fetch(
-      `${API_URL}/teams/${teamId}/logo`,
-      {
-        headers: {
-          "X-Api-Key": API_KEY
-        },
-        signal: AbortSignal.timeout(15000)
-      }
-    );
-
-    if (!response.ok) {
-      return res.status(404).end();
-    }
-
-    const contentType =
-      response.headers.get("content-type") || "image/png";
-
-    if (!contentType.startsWith("image/")) {
-      return res.status(502).end();
-    }
-
-    const buffer = Buffer.from(await response.arrayBuffer());
-
-    if (logoCache.size >= 500) {
-      const firstKey = logoCache.keys().next().value;
-      logoCache.delete(firstKey);
-    }
-
-    logoCache.set(teamId, {
-      buffer,
-      contentType,
-      expiresAt: Date.now() + LOGO_CACHE_TIME
-    });
-
-    res.set("Cache-Control", "public, max-age=604800");
-    res.set("Content-Type", contentType);
-
-    res.send(buffer);
-
-  } catch (error) {
-    console.error("Team logo error:", error.message);
-    res.status(502).end();
-  }
-});
-
-// تفاصيل المباراة مع الأحداث
-app.get("/fixture/:id", async (req, res) => {
-  try {
-    const fixtureId = Number(req.params.id);
-
-    if (!Number.isSafeInteger(fixtureId) || fixtureId <= 0) {
-      return res.status(400).json({
-        error: "Invalid fixture ID"
-      });
-    }
-
-    const data = await sportRequest(`/fixtures/${fixtureId}`);
-
-    if (!data.fixture) {
-      return res.status(404).json({
-        error: "Fixture not found"
-      });
-    }
-
-    const fixture = {
-      ...data.fixture,
-      events: Array.isArray(data.fixture.events)
-        ? data.fixture.events
-        : []
-    };
-
-    res.json({
-      response: [mapFixture(fixture)]
-    });
-
-  } catch (error) {
-    console.error("Fixture details error:", error.message);
-
-    res.status(500).json({
-      error: "Unable to load fixture details"
-    });
-  }
-});
-
-// فحص السيرفر
-app.get("/health", (req, res) => {
-  res.json({
-    status: "OK",
-    project: "ESPESCORE",
-    api: "SportAPI"
-  });
-});
-
-// الصفحة الرئيسية
-app.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, "index.html"));
-});
-
-app.listen(PORT, () => {
-  console.log(`ESPESCORE running on port ${PORT}`);
-});
+showToday();
+refreshTimer=setInterval(()=>{
+if(currentMode!=="details") loadMatches();
+},60000);
+</script>
+</body>
+</html>
