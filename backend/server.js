@@ -65,7 +65,6 @@ function mapStatus(status, minute) {
   };
 }
 
-// الاحتفاظ بجميع بيانات الحدث الأصلية
 function mapEvent(event) {
   return {
     ...event,
@@ -163,6 +162,58 @@ app.get("/live", async (req, res) => {
   }
 });
 
+// تشخيص حقول الأحداث والتبديلات
+app.get("/debug/events", async (req, res) => {
+  try {
+    const date = tunisianDate();
+
+    const data = await sportRequest(
+      `/fixtures/date/${date}`
+    );
+
+    const matches = Array.isArray(data.data) ? data.data : [];
+
+    const results = [];
+    const allKeys = new Set();
+
+    for (const match of matches) {
+      const events = Array.isArray(match.events)
+        ? match.events
+        : [];
+
+      for (const event of events) {
+        Object.keys(event).forEach(key => allKeys.add(key));
+      }
+
+      const substitutions = events.filter(event =>
+        /sub|substitution/i.test(String(event.event_type || ""))
+      );
+
+      if (substitutions.length) {
+        results.push({
+          fixture_id: match.id,
+          home_team: match.home_team,
+          away_team: match.away_team,
+          substitutions
+        });
+      }
+    }
+
+    res.json({
+      date,
+      matches_checked: matches.length,
+      event_fields: [...allKeys],
+      substitution_matches: results
+    });
+
+  } catch (error) {
+    console.error("Events debug error:", error.message);
+    res.status(500).json({
+      error: "Unable to inspect event data"
+    });
+  }
+});
+
 // شعارات الفرق
 app.get("/team-logo/:id", async (req, res) => {
   try {
@@ -224,7 +275,7 @@ app.get("/team-logo/:id", async (req, res) => {
   }
 });
 
-// تفاصيل المباراة مع جميع بيانات الأحداث
+// تفاصيل المباراة مع الأحداث
 app.get("/fixture/:id", async (req, res) => {
   try {
     const fixtureId = Number(req.params.id);
