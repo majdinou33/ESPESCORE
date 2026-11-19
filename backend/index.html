@@ -1,168 +1,406 @@
 
+
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#101827">
-  <title>ESPESCORE - Football Live</title>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: Arial,sans-serif; background:#101827; color:#fff; min-height:100vh; }
-    header { background:#172337; padding:20px 5%; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid #29374d; flex-wrap:wrap; gap:15px; }
-    .logo { font-size:27px; font-weight:bold; color:#27d69b; }
-    .logo span { color:white; }
-    .live-label { color:#ff5353; font-weight:bold; }
-    .container { max-width:1000px; margin:30px auto; padding:0 15px; }
-    .welcome { margin-bottom:25px; }
-    .welcome h1 { font-size:30px; margin-bottom:8px; }
-    .welcome p { color:#aab7c9; }
-    .controls { display:flex; gap:10px; margin:20px 0; flex-wrap:wrap; }
-    button,input { padding:12px 18px; border:1px solid #34445d; border-radius:8px; background:#1c2b40; color:white; font-size:15px; }
-    button { cursor:pointer; }
-    button.active { background:#20b982; border-color:#20b982; color:#071c17; font-weight:bold; }
-    input { color-scheme:dark; }
-    .section-title { margin:25px 0 15px; font-size:21px; }
-    .match { background:#1b293d; border:1px solid #2c3c54; border-radius:12px; margin-bottom:12px; padding:17px; display:grid; grid-template-columns:75px 1fr 90px; align-items:center; gap:12px; }
-    .league { color:#91a4bb; font-size:12px; margin-bottom:12px; grid-column:1 / -1; }
-    .team { display:flex; align-items:center; gap:9px; margin:8px 0; font-weight:bold; }
-    .team img { width:27px; height:27px; object-fit:contain; }
-    .score { text-align:center; font-size:20px; font-weight:bold; }
-    .status { text-align:right; color:#20d69b; font-size:13px; font-weight:bold; }
-    .finished { color:#aab7c9; }
-    .scheduled { color:#ffc65c; }
-    .message { text-align:center; padding:35px 15px; background:#1b293d; border-radius:12px; color:#b7c4d5; line-height:1.7; }
-    .loader { text-align:center; padding:30px; color:#20d69b; }
-    footer { text-align:center; color:#8291a6; padding:30px 10px; font-size:13px; }
-    @media(max-width:550px) {
-      header { padding:17px; }
-      .welcome h1 { font-size:24px; }
-      .match { grid-template-columns:55px 1fr 65px; padding:12px; gap:7px; }
-      .team { font-size:13px; }
-      .team img { width:22px; height:22px; }
-      .score { font-size:17px; }
-      .status { font-size:11px; }
-    }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#151515">
+<title>ESPESCORE - Football Live</title>
+
+<style>
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: Arial, sans-serif;
+  background: #151515;
+  color: #fff;
+  min-height: 100vh;
+}
+
+header {
+  background: #D71920;
+  padding: 20px 5%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 15px;
+}
+
+.logo {
+  font-size: 27px;
+  font-weight: bold;
+  color: #FFD43B;
+}
+
+.logo span {
+  color: white;
+}
+
+.live-label {
+  color: white;
+  font-weight: bold;
+}
+
+.container {
+  max-width: 1000px;
+  margin: 30px auto;
+  padding: 0 15px;
+}
+
+.welcome {
+  margin-bottom: 25px;
+}
+
+.welcome h1 {
+  font-size: 28px;
+  color: #FFD43B;
+  margin-bottom: 8px;
+}
+
+.welcome p {
+  color: #aaa;
+}
+
+.controls {
+  display: flex;
+  gap: 10px;
+  margin: 20px 0;
+  flex-wrap: wrap;
+}
+
+button, input {
+  padding: 12px 16px;
+  border: 1px solid #444;
+  border-radius: 8px;
+  background: #252525;
+  color: white;
+  font-size: 15px;
+}
+
+button {
+  cursor: pointer;
+}
+
+button.active {
+  background: #FFD43B;
+  border-color: #FFD43B;
+  color: #151515;
+  font-weight: bold;
+}
+
+#liveBtn {
+  border-color: #D71920;
+}
+
+#liveBtn.active {
+  background: #D71920;
+  color: white;
+}
+
+input {
+  color-scheme: dark;
+}
+
+.section-title {
+  margin: 25px 0 15px;
+  font-size: 21px;
+  color: #FFD43B;
+}
+
+.league-group {
+  background: #252525;
+  border: 1px solid #444;
+  border-radius: 12px;
+  margin-bottom: 18px;
+  overflow: hidden;
+}
+
+.league-header {
+  background: #D71920;
+  padding: 14px 16px;
+  font-weight: bold;
+  color: white;
+  border-bottom: 2px solid #FFD43B;
+}
+
+.match {
+  display: grid;
+  grid-template-columns: 1fr 65px 65px;
+  align-items: center;
+  gap: 8px;
+  padding: 15px;
+  border-bottom: 1px solid #444;
+}
+
+.match:last-child {
+  border-bottom: none;
+}
+
+.team {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 8px 0;
+  font-weight: bold;
+  font-size: 14px;
+}
+
+.team img {
+  width: 25px;
+  height: 25px;
+  object-fit: contain;
+}
+
+.score {
+  text-align: center;
+  font-size: 19px;
+  font-weight: bold;
+  color: #FFD43B;
+  line-height: 1.7;
+}
+
+.status {
+  text-align: right;
+  color: #FFD43B;
+  font-size: 13px;
+  font-weight: bold;
+}
+
+.finished {
+  color: #aaa;
+}
+
+.scheduled {
+  color: #FFD43B;
+}
+
+.message {
+  text-align: center;
+  padding: 35px 15px;
+  background: #252525;
+  border-radius: 12px;
+  color: #ccc;
+  line-height: 1.7;
+}
+
+.loader {
+  text-align: center;
+  padding: 30px;
+  color: #FFD43B;
+}
+
+footer {
+  text-align: center;
+  color: #888;
+  padding: 30px 10px;
+  font-size: 13px;
+}
+
+@media(max-width: 550px) {
+  header {
+    padding: 17px;
+  }
+
+  .welcome h1 {
+    font-size: 24px;
+  }
+
+  .match {
+    grid-template-columns: 1fr 48px 55px;
+    padding: 12px 9px;
+    gap: 5px;
+  }
+
+  .team {
+    font-size: 12px;
+    gap: 6px;
+  }
+
+  .team img {
+    width: 22px;
+    height: 22px;
+  }
+
+  .score {
+    font-size: 16px;
+  }
+
+  .status {
+    font-size: 11px;
+  }
+}
+</style>
 </head>
+
 <body>
+
 <header>
   <div class="logo">ESPE<span>SCORE</span> ⚽</div>
   <div class="live-label">● FOOTBALL LIVE</div>
 </header>
+
 <main class="container">
+
   <section class="welcome">
     <h1>Football Scores</h1>
     <p>All matches. All results. One place.</p>
   </section>
+
   <div class="controls">
-    <button id="todayBtn" class="active" onclick="showToday()">Today</button>
-    <button id="liveBtn" onclick="showLive()">🔴 Live</button>
+    <button id="todayBtn" class="active" onclick="showToday()">
+      Today
+    </button>
+
+    <button id="liveBtn" onclick="showLive()">
+      🔴 Live
+    </button>
+
     <input type="date" id="matchDate">
   </div>
-  <h2 class="section-title" id="sectionTitle">Today's Matches</h2>
+
+  <h2 class="section-title" id="sectionTitle">
+    Today's Matches
+  </h2>
+
   <div id="matches">
     <div class="loader">Loading matches...</div>
   </div>
+
 </main>
-<footer>© 2026 ESPESCORE - Football Live</footer>
+
+<footer>
+  © 2026 ESPESCORE - Football Live
+</footer>
+
 <script>
-  const matchesElement = document.getElementById("matches");
-  const titleElement = document.getElementById("sectionTitle");
-  const dateInput = document.getElementById("matchDate");
-  let currentMode = "today";
+const matchesElement = document.getElementById("matches");
+const titleElement = document.getElementById("sectionTitle");
+const dateInput = document.getElementById("matchDate");
 
-  function localDate() {
-    const now = new Date();
-    const offset = now.getTimezoneOffset();
-    return new Date(now.getTime() - offset * 60000).toISOString().slice(0,10);
-  }
+let currentMode = "today";
+let isLoading = false;
 
-  dateInput.value = localDate();
+function localDate() {
+  const now = new Date();
+  const offset = now.getTimezoneOffset();
 
-  function setActive(buttonId) {
-    document.getElementById("todayBtn").classList.remove("active");
-    document.getElementById("liveBtn").classList.remove("active");
-    document.getElementById(buttonId).classList.add("active");
-  }
+  return new Date(now.getTime() - offset * 60000)
+    .toISOString().slice(0, 10);
+}
 
-  function showToday() {
-    currentMode = "today";
-    setActive("todayBtn");
-    titleElement.textContent = "Today's Matches";
-    loadMatches();
-  }
+dateInput.value = localDate();
 
-  function showLive() {
-    currentMode = "live";
-    setActive("liveBtn");
-    titleElement.textContent = "Live Matches";
-    loadMatches();
-  }
+function setActive(buttonId) {
+  document.getElementById("todayBtn").classList.remove("active");
+  document.getElementById("liveBtn").classList.remove("active");
+  document.getElementById(buttonId).classList.add("active");
+}
 
-  dateInput.addEventListener("change", () => {
-    currentMode = "today";
-    setActive("todayBtn");
-    titleElement.textContent = "Matches - " + dateInput.value;
-    loadMatches();
-  });
+function showToday() {
+  currentMode = "today";
+  setActive("todayBtn");
+  titleElement.textContent = "Today's Matches";
+  loadMatches();
+}
 
-  function escapeHTML(value) {
-    return String(value ?? "").replace(/[&<>"']/g, char => ({
-      "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;"
-    })[char]);
-  }
-  
-  function getStatus(fixture) {
-    const status = fixture.fixture.status;
-    const code = status.short;
+function showLive() {
+  currentMode = "live";
+  setActive("liveBtn");
+  titleElement.textContent = "Live Matches";
+  loadMatches();
+}
 
-    if (["FT", "AET", "PEN"].includes(code)) {
-      return { text: "Finished", className: "finished" };
-    }
+dateInput.addEventListener("change", () => {
+  currentMode = "today";
+  setActive("todayBtn");
+  titleElement.textContent = "Matches - " + dateInput.value;
+  loadMatches();
+});
 
-    if (["1H", "2H", "HT", "ET", "P", "LIVE", "BT"].includes(code)) {
-      return {
-        text: status.elapsed != null ? status.elapsed + "'" : "LIVE",
-        className: ""
-      };
-    }
+function escapeHTML(value) {
+  return String(value ?? "").replace(/[&<>"']/g, char => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;"
+  })[char]);
+}
 
-    if (code === "NS") {
-      return {
-        text: new Date(fixture.fixture.date).toLocaleTimeString(
-          [], { hour: "2-digit", minute: "2-digit" }
-        ),
-        className: "scheduled"
-      };
-    }
+function getStatus(fixture) {
+  const status = fixture.fixture.status;
+  const code = status.short;
 
+  if (["FT", "AET", "PEN"].includes(code)) {
     return {
-      text: status.long || code,
+      text: "Finished",
       className: "finished"
     };
   }
 
-  function renderMatches(matches) {
-    if (!matches || matches.length === 0) {
-      matchesElement.innerHTML =
-        '<div class="message">⚽ No matches found.<br>Try another date or check again later.</div>';
-      return;
+  if (["1H", "2H", "HT", "ET", "P", "LIVE", "BT"].includes(code)) {
+    return {
+      text: status.elapsed != null
+        ? status.elapsed + "'"
+        : "LIVE",
+      className: ""
+    };
+  }
+
+  if (code === "NS") {
+    return {
+      text: new Date(fixture.fixture.date).toLocaleTimeString(
+        [], { hour: "2-digit", minute: "2-digit" }
+      ),
+      className: "scheduled"
+    };
+  }
+
+  return {
+    text: status.long || code,
+    className: "finished"
+  };
+}
+
+function renderMatches(matches) {
+  if (!matches || matches.length === 0) {
+    matchesElement.innerHTML =
+      '<div class="message">⚽ No matches found.<br>Try another date or check again later.</div>';
+    return;
+  }
+
+  const leagues = new Map();
+
+  matches.forEach(match => {
+    const league = match.league;
+    const key = league.id ?? (league.name + "-" + league.country);
+
+    if (!leagues.has(key)) {
+      leagues.set(key, {
+        name: league.name,
+        country: league.country,
+        matches: []
+      });
     }
 
-    matchesElement.innerHTML = matches.map(match => {
+    leagues.get(key).matches.push(match);
+  });
+
+  matchesElement.innerHTML = Array.from(leagues.values()).map(group => {
+
+    const matchHTML = group.matches.map(match => {
       const home = match.teams.home;
       const away = match.teams.away;
       const status = getStatus(match);
-      const homeScore = match.goals.home ?? "-";
-      const awayScore = match.goals.away ?? "-";
 
       return `
         <article class="match">
-          <div class="league">
-            ${escapeHTML(match.league.name)} ·
-            ${escapeHTML(match.league.country)}
-          </div>
 
           <div>
             <div class="team">
@@ -181,62 +419,78 @@
           </div>
 
           <div class="score">
-            ${homeScore}<br>${awayScore}
+            ${match.goals.home ?? "-"}<br>
+            ${match.goals.away ?? "-"}
           </div>
 
           <div class="status ${status.className}">
             ${escapeHTML(status.text)}
           </div>
+
         </article>
       `;
     }).join("");
-  }
 
-  let isLoading = false;
+    return `
+      <section class="league-group">
 
-  async function loadMatches() {
-    if (isLoading) return;
-    isLoading = true;
-
-    try {
-      const url = currentMode === "live"
-        ? "/live"
-        : "/fixtures?date=" + encodeURIComponent(dateInput.value);
-
-      const response = await fetch(url);
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Server error");
-      }
-
-      renderMatches(data.response);
-
-    } catch (error) {
-      console.error(error);
-
-      matchesElement.innerHTML = `
-        <div class="message">
-          ⚠️ Unable to load matches.<br>
-          ${escapeHTML(error.message)}<br>
-          Please check your server and API key.
-          <br><br>
-          <button onclick="loadMatches()">Try Again</button>
+        <div class="league-header">
+          🏆 ${escapeHTML(group.name)}
+          · ${escapeHTML(group.country)}
         </div>
-      `;
-    } finally {
-      isLoading = false;
+
+        ${matchHTML}
+
+      </section>
+    `;
+  }).join("");
+}
+
+async function loadMatches() {
+  if (isLoading) return;
+
+  isLoading = true;
+
+  try {
+    const url = currentMode === "live"
+      ? "/live"
+      : "/fixtures?date=" + encodeURIComponent(dateInput.value);
+
+    const response = await fetch(url);
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || "Server error");
     }
+
+    renderMatches(data.response);
+
+  } catch (error) {
+    console.error(error);
+
+    matchesElement.innerHTML = `
+      <div class="message">
+        ⚠️ Unable to load matches.<br>
+        ${escapeHTML(error.message)}
+        <br><br>
+        <button onclick="loadMatches()">Try Again</button>
+      </div>
+    `;
+
+  } finally {
+    isLoading = false;
   }
+}
 
-  // Initial loading
+// Initial loading
+loadMatches();
+
+// Automatic refresh every 60 seconds
+setInterval(() => {
   loadMatches();
-
-  // Automatic refresh every 60 seconds
-  setInterval(() => {
-    loadMatches();
-  }, 60000);
+}, 60000);
 
 </script>
+
 </body>
 </html>
