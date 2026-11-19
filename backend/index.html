@@ -5,6 +5,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ESPESCORE - Football Live</title>
+
 <style>
 *{box-sizing:border-box}
 body{margin:0;background:#151515;color:white;font-family:Arial,sans-serif}
@@ -12,7 +13,7 @@ header{background:#d71920;padding:20px;text-align:center;border-bottom:4px solid
 header h1{margin:0;font-size:28px}
 header p{margin:7px 0 0;color:#ffe5a0}
 nav{display:flex;gap:10px;padding:15px;justify-content:center;flex-wrap:wrap}
-button{background:#252525;color:white;border:1px solid #ffd43b;padding:11px 20px;border-radius:8px;font-weight:bold}
+button{background:#252525;color:white;border:1px solid #ffd43b;padding:11px 20px;border-radius:8px;font-weight:bold;cursor:pointer}
 button.active{background:#ffd43b;color:#151515}
 #date{background:#252525;color:white;padding:10px;border:1px solid #ffd43b;border-radius:8px}
 main{max-width:850px;margin:auto;padding:12px}
@@ -33,12 +34,29 @@ h2{color:#ffd43b}
 .scoreboard{display:flex;justify-content:space-around;align-items:center;text-align:center;gap:10px;margin:25px 0}
 .scoreboard img{width:55px;height:55px;object-fit:contain}
 .scoreboard strong{font-size:25px;color:#ffd43b}
-.event{padding:12px;border-bottom:1px solid #444}
 .muted{text-align:center;color:#aaa;padding:25px}
 .back{background:#d71920;border:0;margin-bottom:15px}
+.events-title{margin-top:30px;border-bottom:2px solid #ffd43b;padding-bottom:10px}
+.event-list{margin-top:15px}
+.event{display:flex;align-items:center;gap:12px;padding:13px 10px;border-bottom:1px solid #444}
+.event-icon{font-size:23px;width:32px;text-align:center;flex-shrink:0}
+.event-info{flex:1;min-width:0}
+.event-name{font-weight:bold;font-size:14px}
+.event-detail{color:#aaa;font-size:12px;margin-top:5px}
+.event-minute{color:#ffd43b;font-weight:bold;min-width:38px;text-align:right}
+.event.goal{border-left:3px solid #ffd43b}
+.event.yellow{border-left:3px solid #f5d442}
+.event.red{border-left:3px solid #e53935}
+.event.substitution{border-left:3px solid #36c978}
+.event.assist{margin-left:43px;padding-top:5px;padding-bottom:10px;border-bottom:0}
+.event.assist .event-icon{font-size:17px}
+.event.assist .event-name{font-size:12px;color:#aaa;font-weight:normal}
+.no-events{text-align:center;color:#aaa;padding:25px}
 </style>
 </head>
+
 <body>
+
 <header>
 <h1>ESPESCORE ⚽</h1>
 <p>● FOOTBALL LIVE</p>
@@ -105,6 +123,7 @@ if(!response.ok) throw new Error("Server error");
 
 const data=await response.json();
 renderMatches(data.response || []);
+
 }catch(error){
 matchList.innerHTML='<div class="muted">Unable to load matches. Please try again.</div>';
 }
@@ -121,6 +140,7 @@ const groups={};
 matches.forEach((m,i)=>{
 const league=m.league?.name || "Other matches";
 const country=m.league?.country || "";
+
 if(!groups[league]) groups[league]={country,matches:[]};
 groups[league].matches.push({...m,_index:i});
 });
@@ -128,22 +148,27 @@ groups[league].matches.push({...m,_index:i});
 matchList.innerHTML=Object.entries(groups).map(([league,g])=>`
 <div class="league">
 <div class="league-title">🏆 ${safe(league)} · ${safe(g.country)}</div>
+
 ${g.matches.map(m=>{
 const home=m.teams?.home || {};
 const away=m.teams?.away || {};
 const status=statusText(m);
 const scoreHome=m.goals?.home;
 const scoreAway=m.goals?.away;
+const id=Number(m.fixture?.id);
+
 return `
-<div class="match" onclick="openDetails(${Number(m.fixture?.id)})">
+<div class="match" onclick="openDetails(${Number.isSafeInteger(id)?id:0})">
 <div class="team">
 ${home.logo?`<img src="${safe(home.logo)}" alt="">`:""}
 <span>${safe(home.name || "Home")}</span>
 </div>
+
 <div class="score">
 ${scoreHome??"-"} : ${scoreAway??"-"}
 <div class="status ${status==="LIVE"?"live":""}">${safe(status)}</div>
 </div>
+
 <div class="team away">
 <span>${safe(away.name || "Away")}</span>
 ${away.logo?`<img src="${safe(away.logo)}" alt="">`:""}
@@ -153,15 +178,124 @@ ${away.logo?`<img src="${safe(away.logo)}" alt="">`:""}
 </div>`).join("");
 }
 
+/* Match event display */
+
+function eventType(e){
+return String(e.type || "other").toLowerCase().replace(/[\s-]/g,"_");
+}
+
+function eventMinute(e){
+const value=String(e.minute ?? "");
+const number=parseInt(value,10);
+return Number.isNaN(number)?999:number;
+}
+
+function eventPresentation(e){
+const type=eventType(e);
+
+if(type.includes("goal")){
+return {icon:"⚽",label:"GOAL",className:"goal"};
+}
+
+if(type.includes("assist")){
+return {icon:"🅰️",label:"Assist",className:"assist"};
+}
+
+if(type.includes("yellow")){
+return {icon:"🟨",label:"Yellow Card",className:"yellow"};
+}
+
+if(type.includes("red")){
+return {icon:"🟥",label:"Red Card",className:"red"};
+}
+
+if(type.includes("sub")){
+return {icon:"🔄",label:"Substitution",className:"substitution"};
+}
+
+return {icon:"•",label:e.type || "Event",className:""};
+}
+
+function renderEvents(events){
+if(!Array.isArray(events) || events.length===0){
+return '<div class="no-events">No events available.</div>';
+}
+
+const sorted=[...events].sort((a,b)=>eventMinute(a)-eventMinute(b));
+
+const assists=sorted.filter(e=>eventType(e).includes("assist"));
+const mainEvents=sorted.filter(e=>!eventType(e).includes("assist"));
+const usedAssists=new Set();
+
+let html="";
+
+mainEvents.forEach(e=>{
+const presentation=eventPresentation(e);
+const minute=safe(e.minute);
+const player=safe(e.player || "Unknown player");
+const team=safe(e.team || "");
+const detail=safe(e.detail || "");
+
+html+=`
+<div class="event ${presentation.className}">
+<div class="event-icon">${presentation.icon}</div>
+<div class="event-info">
+<div class="event-name">${presentation.label} · ${player}</div>
+<div class="event-detail">${team}${detail?" · "+detail:""}</div>
+</div>
+<div class="event-minute">${minute}'</div>
+</div>`;
+
+if(presentation.className==="goal"){
+assists.forEach((a,index)=>{
+const sameMinute=String(a.minute)===String(e.minute);
+const sameTeam=!a.team || !e.team || a.team===e.team;
+
+if(!usedAssists.has(index) && sameMinute && sameTeam){
+usedAssists.add(index);
+
+html+=`
+<div class="event assist">
+<div class="event-icon">🅰️</div>
+<div class="event-info">
+<div class="event-name">Assist · ${safe(a.player || "Unknown player")}</div>
+<div class="event-detail">${safe(a.team || "")}</div>
+</div>
+</div>`;
+}
+});
+}
+});
+
+assists.forEach((a,index)=>{
+if(!usedAssists.has(index)){
+html+=`
+<div class="event assist">
+<div class="event-icon">🅰️</div>
+<div class="event-info">
+<div class="event-name">Assist · ${safe(a.player || "Unknown player")}</div>
+<div class="event-detail">${safe(a.team || "")}</div>
+</div>
+<div class="event-minute">${safe(a.minute)}'</div>
+</div>`;
+}
+});
+
+return html;
+}
+
 async function openDetails(id){
 if(!Number.isSafeInteger(id)||id<=0) return;
 
 currentMode="details";
 clearInterval(refreshTimer);
+
 matchesSection.style.display="none";
 document.getElementById("nav").style.display="none";
 details.style.display="block";
-document.getElementById("detailContent").innerHTML='<div class="muted">Loading match details...</div>';
+
+document.getElementById("detailContent").innerHTML=
+'<div class="muted">Loading match details...</div>';
 
 try{
 const response=await fetch("/fixture/"+id);
@@ -174,24 +308,37 @@ if(!m) throw new Error("Match not found");
 
 const home=m.teams?.home || {};
 const away=m.teams?.away || {};
-
 const events=m.events || [];
 
 document.getElementById("detailContent").innerHTML=`
+
 <h2>${safe(m.league?.name || "Match Details")}</h2>
+
 <div class="scoreboard">
-<div>${home.logo?`<img src="${safe(home.logo)}">`:""}<p>${safe(home.name)}</p></div>
-<strong>${m.goals?.home??"-"} - ${m.goals?.away??"-"}</strong>
-<div>${away.logo?`<img src="${safe(away.logo)}">`:""}<p>${safe(away.name)}</p></div>
+
+<div>
+${home.logo?`<img src="${safe(home.logo)}" alt="">`:""}
+<p>${safe(home.name || "Home")}</p>
 </div>
+
+<strong>${m.goals?.home??"-"} - ${m.goals?.away??"-"}</strong>
+
+<div>
+${away.logo?`<img src="${safe(away.logo)}" alt="">`:""}
+<p>${safe(away.name || "Away")}</p>
+</div>
+
+</div>
+
 <p class="muted">${safe(statusText(m))}</p>
-<h2>Match Events</h2>
-${events.length?events.map(e=>`
-<div class="event">
-${safe(e.minute)}' · ${safe(e.type)} · ${safe(e.player)}
-<br><small>${safe(e.team)} ${safe(e.detail)}</small>
-</div>`).join(""):'<div class="muted">No events available.</div>'}
+
+<h2 class="events-title">⚽ Match Events</h2>
+
+<div class="event-list">
+${renderEvents(events)}
+</div>
 `;
+
 }catch(error){
 document.getElementById("detailContent").innerHTML=
 '<div class="muted">Unable to load match details.</div>';
@@ -202,8 +349,13 @@ function backToMatches(){
 details.style.display="none";
 matchesSection.style.display="block";
 document.getElementById("nav").style.display="flex";
+
 currentMode="today";
 showToday();
+
+refreshTimer=setInterval(()=>{
+if(currentMode!=="details") loadMatches();
+},60000);
 }
 
 function setActive(id){
@@ -231,9 +383,11 @@ if(currentMode!=="live") showToday();
 });
 
 showToday();
+
 refreshTimer=setInterval(()=>{
 if(currentMode!=="details") loadMatches();
 },60000);
+
 </script>
 </body>
 </html>
