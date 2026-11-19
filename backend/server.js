@@ -6,6 +6,7 @@ const app = express();
 
 app.use(cors());
 app.use(express.json());
+app.use(express.static(__dirname));
 
 const API_KEY = process.env.API_FOOTBALL_KEY;
 const API_URL = "https://v3.football.api-sports.io";
