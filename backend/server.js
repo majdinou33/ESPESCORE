@@ -13,7 +13,6 @@ const API_URL = "https://v3.football.api-sports.io";
 
 app.use(cors());
 app.use(express.json());
-app.use(express.static(__dirname));
 
 async function getFixtures(params) {
   if (!API_KEY) {
