@@ -82,6 +82,37 @@ app.get("/live", async (req, res) => {
   }
 });
 
+app.get("/fixture/:id", async (req, res) => {
+  try {
+    const fixtureId = Number(req.params.id);
+
+    if (!Number.isSafeInteger(fixtureId) || fixtureId <= 0) {
+      return res.status(400).json({
+        error: "Invalid fixture ID"
+      });
+    }
+
+    const data = await getFixtures({
+      id: fixtureId
+    });
+
+    if (!data.response || data.response.length === 0) {
+      return res.status(404).json({
+        error: "Fixture not found"
+      });
+    }
+
+    res.json(data);
+
+  } catch (error) {
+    console.error("Fixture details error:", error.message);
+
+    res.status(500).json({
+      error: "Unable to load fixture details"
+    });
+  }
+});
+
 app.get("/health", (req, res) => {
   res.json({
     status: "OK",
