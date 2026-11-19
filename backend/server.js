@@ -14,7 +14,6 @@ const API_URL = "https://sportapi.ai/api";
 app.use(cors());
 app.use(express.json());
 
-// تخزين الشعارات مؤقتاً
 const logoCache = new Map();
 const LOGO_CACHE_TIME = 7 * 24 * 60 * 60 * 1000;
 
@@ -67,6 +66,18 @@ function mapStatus(status, minute) {
   };
 }
 
+// تحويل أحداث المباراة
+function mapEvent(event) {
+  return {
+    id: event.id ?? null,
+    type: event.event_type || "other",
+    team: event.team_side || "",
+    player: event.player_name || "",
+    minute: event.minute || "",
+    detail: event.extra_info || ""
+  };
+}
+
 function mapFixture(match) {
   return {
     fixture: {
@@ -85,24 +96,24 @@ function mapFixture(match) {
       home: {
         id: match.home_id,
         name: match.home_team || "Home",
-        logo: match.home_id
-          ? `/team-logo/${match.home_id}`
-          : ""
+        logo: match.home_id ? `/team-logo/${match.home_id}` : ""
       },
 
       away: {
         id: match.away_id,
         name: match.away_team || "Away",
-        logo: match.away_id
-          ? `/team-logo/${match.away_id}`
-          : ""
+        logo: match.away_id ? `/team-logo/${match.away_id}` : ""
       }
     },
 
     goals: {
       home: match.home_score ?? null,
       away: match.away_score ?? null
-    }
+    },
+
+    events: Array.isArray(match.events)
+      ? match.events.map(mapEvent)
+      : []
   };
 }
 
@@ -121,9 +132,7 @@ app.get("/fixtures", async (req, res) => {
     const date = req.query.date;
 
     if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-      return res.status(400).json({
-        error: "Invalid date"
-      });
+      return res.status(400).json({ error: "Invalid date" });
     }
 
     const data = await sportRequest(
@@ -135,23 +144,17 @@ app.get("/fixtures", async (req, res) => {
     res.json({
       response: matches.map(mapFixture)
     });
-
   } catch (error) {
     console.error("Fixtures error:", error.message);
-
-    res.status(500).json({
-      error: "Unable to load matches"
-    });
+    res.status(500).json({ error: "Unable to load matches" });
   }
 });
 
 // المباريات المباشرة
 app.get("/live", async (req, res) => {
   try {
-    const date = tunisianDate();
-
     const data = await sportRequest(
-      `/fixtures/date/${date}`
+      `/fixtures/date/${tunisianDate()}`
     );
 
     const matches = Array.isArray(data.data) ? data.data : [];
@@ -163,13 +166,9 @@ app.get("/live", async (req, res) => {
     res.json({
       response: liveMatches.map(mapFixture)
     });
-
   } catch (error) {
     console.error("Live error:", error.message);
-
-    res.status(500).json({
-      error: "Unable to load live matches"
-    });
+    res.status(500).json({ error: "Unable to load live matches" });
   }
 });
 
@@ -197,16 +196,12 @@ app.get("/team-logo/:id", async (req, res) => {
     const response = await fetch(
       `${API_URL}/teams/${teamId}/logo`,
       {
-        headers: {
-          "X-Api-Key": API_KEY
-        },
+        headers: { "X-Api-Key": API_KEY },
         signal: AbortSignal.timeout(15000)
       }
     );
 
-    if (!response.ok) {
-      return res.status(404).end();
-    }
+    if (!response.ok) return res.status(404).end();
 
     const contentType =
       response.headers.get("content-type") || "image/png";
@@ -217,7 +212,6 @@ app.get("/team-logo/:id", async (req, res) => {
 
     const buffer = Buffer.from(await response.arrayBuffer());
 
-    // الاحتفاظ بآخر 500 شعار كحد أقصى
     if (logoCache.size >= 500) {
       const firstKey = logoCache.keys().next().value;
       logoCache.delete(firstKey);
@@ -231,41 +225,33 @@ app.get("/team-logo/:id", async (req, res) => {
 
     res.set("Cache-Control", "public, max-age=604800");
     res.set("Content-Type", contentType);
-
     res.send(buffer);
-
   } catch (error) {
     console.error("Team logo error:", error.message);
     res.status(502).end();
   }
 });
 
-// تفاصيل المباراة
+// تفاصيل المباراة مع الأحداث
 app.get("/fixture/:id", async (req, res) => {
   try {
     const fixtureId = Number(req.params.id);
 
     if (!Number.isSafeInteger(fixtureId) || fixtureId <= 0) {
-      return res.status(400).json({
-        error: "Invalid fixture ID"
-      });
+      return res.status(400).json({ error: "Invalid fixture ID" });
     }
 
     const data = await sportRequest(`/fixtures/${fixtureId}`);
 
     if (!data.fixture) {
-      return res.status(404).json({
-        error: "Fixture not found"
-      });
+      return res.status(404).json({ error: "Fixture not found" });
     }
 
     res.json({
       response: [mapFixture(data.fixture)]
     });
-
   } catch (error) {
     console.error("Fixture details error:", error.message);
-
     res.status(500).json({
       error: "Unable to load fixture details"
     });
