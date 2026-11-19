@@ -37,6 +37,33 @@ async function sportRequest(endpoint) {
   return data;
 }
 
+// Fetch events from the dedicated SportAPI endpoint.
+// If unavailable, keep the events included in fixture details.
+async function getFixtureEvents(fixtureId, fallbackEvents = []) {
+  try {
+    const data = await sportRequest(
+      `/fixtures/${fixtureId}/events`
+    );
+
+    if (Array.isArray(data.data)) {
+      return {
+        events: data.data,
+        source: "events_endpoint"
+      };
+    }
+  } catch (error) {
+    console.error(
+      `Events endpoint error for ${fixtureId}:`,
+      error.message
+    );
+  }
+
+  return {
+    events: Array.isArray(fallbackEvents) ? fallbackEvents : [],
+    source: "fixture_fallback"
+  };
+}
+
 function mapStatus(status, minute) {
   const value = String(status || "").toUpperCase();
 
@@ -69,11 +96,11 @@ function mapEvent(event) {
   return {
     ...event,
     id: event.id ?? null,
-    type: event.event_type || "other",
-    team: event.team_side || "",
-    player: event.player_name || "",
+    type: event.event_type || event.type || "other",
+    team: event.team_side || event.team || "",
+    player: event.player_name || event.player || "",
     minute: event.minute || "",
-    detail: event.extra_info || ""
+    detail: event.extra_info || event.detail || ""
   };
 }
 
@@ -135,10 +162,15 @@ app.get("/fixtures", async (req, res) => {
 
     const matches = Array.isArray(data.data) ? data.data : [];
 
-    res.json({ response: matches.map(mapFixture) });
+    res.json({
+      response: matches.map(mapFixture)
+    });
+
   } catch (error) {
     console.error("Fixtures error:", error.message);
-    res.status(500).json({ error: "Unable to load matches" });
+    res.status(500).json({
+      error: "Unable to load matches"
+    });
   }
 });
 
@@ -155,20 +187,53 @@ app.get("/live", async (req, res) => {
       String(match.status).toUpperCase() === "LIVE"
     );
 
-    res.json({ response: liveMatches.map(mapFixture) });
+    res.json({
+      response: liveMatches.map(mapFixture)
+    });
+
   } catch (error) {
     console.error("Live error:", error.message);
-    res.status(500).json({ error: "Unable to load live matches" });
+    res.status(500).json({
+      error: "Unable to load live matches"
+    });
   }
 });
 
-// Diagnostic: inspect detailed events for today's matches
+// Diagnostic: test the dedicated events endpoint
 app.get("/debug/events", async (req, res) => {
   try {
-    const date = tunisianDate();
+    const requestedId = req.query.fixture
+      ? Number(req.query.fixture)
+      : null;
 
-    const data = await sportRequest(`/fixtures/date/${date}`);
-    const matches = Array.isArray(data.data) ? data.data : [];
+    let matches = [];
+
+    if (requestedId) {
+      if (!Number.isSafeInteger(requestedId) || requestedId <= 0) {
+        return res.status(400).json({
+          error: "Invalid fixture ID"
+        });
+      }
+
+      const detail = await sportRequest(
+        `/fixtures/${requestedId}`
+      );
+
+      if (detail.fixture) {
+        matches.push(detail.fixture);
+      } else {
+        matches.push({ id: requestedId });
+      }
+
+    } else {
+      const date = tunisianDate();
+
+      const data = await sportRequest(
+        `/fixtures/date/${date}`
+      );
+
+      matches = Array.isArray(data.data) ? data.data : [];
+    }
 
     const eventFields = new Set();
     const substitutionMatches = [];
@@ -182,26 +247,22 @@ app.get("/debug/events", async (req, res) => {
       if (!match.id) continue;
 
       try {
-        const detailData = await sportRequest(
-          `/fixtures/${Number(match.id)}`
+        const result = await getFixtureEvents(
+          Number(match.id),
+          match.events
         );
 
-        const fixture = detailData.fixture;
-
-        if (!fixture) continue;
+        const events = result.events;
 
         matchesChecked++;
 
-        const events = Array.isArray(fixture.events)
-          ? fixture.events
-          : [];
-
         if (events.length > 0) {
           matchesWithEvents.push({
-            fixture_id: fixture.id,
-            home: fixture.home_team,
-            away: fixture.away_team,
-            events_count: events.length
+            fixture_id: match.id,
+            home: match.home_team || "",
+            away: match.away_team || "",
+            events_count: events.length,
+            source: result.source
           });
         }
 
@@ -216,18 +277,22 @@ app.get("/debug/events", async (req, res) => {
             event.event_type || event.type || ""
           ).toLowerCase();
 
+          const eventText = JSON.stringify(event).toLowerCase();
+
           if (
             eventType.includes("sub") ||
-            eventType.includes("substitution")
+            eventType.includes("substitution") ||
+            eventText.includes("substitution")
           ) {
             substitutionMatches.push({
-              fixture_id: fixture.id,
-              home: fixture.home_team,
-              away: fixture.away_team,
+              fixture_id: match.id,
+              home: match.home_team || "",
+              away: match.away_team || "",
               event
             });
           }
         }
+
       } catch (error) {
         errors.push({
           fixture_id: match.id,
@@ -237,7 +302,7 @@ app.get("/debug/events", async (req, res) => {
     }
 
     res.json({
-      date,
+      date: tunisianDate(),
       matches_found: matches.length,
       matches_checked: matchesChecked,
       events_found: eventsFound,
@@ -316,23 +381,39 @@ app.get("/team-logo/:id", async (req, res) => {
   }
 });
 
-// Fixture details
+// Fixture details with dedicated events endpoint
 app.get("/fixture/:id", async (req, res) => {
   try {
     const fixtureId = Number(req.params.id);
 
     if (!Number.isSafeInteger(fixtureId) || fixtureId <= 0) {
-      return res.status(400).json({ error: "Invalid fixture ID" });
+      return res.status(400).json({
+        error: "Invalid fixture ID"
+      });
     }
 
-    const data = await sportRequest(`/fixtures/${fixtureId}`);
+    const data = await sportRequest(
+      `/fixtures/${fixtureId}`
+    );
 
     if (!data.fixture) {
-      return res.status(404).json({ error: "Fixture not found" });
+      return res.status(404).json({
+        error: "Fixture not found"
+      });
     }
 
+    const result = await getFixtureEvents(
+      fixtureId,
+      data.fixture.events
+    );
+
+    const fixture = {
+      ...data.fixture,
+      events: result.events
+    };
+
     res.json({
-      response: [mapFixture(data.fixture)]
+      response: [mapFixture(fixture)]
     });
 
   } catch (error) {
