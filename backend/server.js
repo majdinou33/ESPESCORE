@@ -106,6 +106,7 @@ function tunisianDate() {
   }).format(new Date());
 }
 
+// مباريات اليوم
 app.get("/fixtures", async (req, res) => {
   try {
     const date = req.query.date;
@@ -135,6 +136,7 @@ app.get("/fixtures", async (req, res) => {
   }
 });
 
+// المباريات المباشرة
 app.get("/live", async (req, res) => {
   try {
     const date = tunisianDate();
@@ -162,36 +164,7 @@ app.get("/live", async (req, res) => {
   }
 });
 
-app.get("/fixture/:id", async (req, res) => {
-  try {
-    const fixtureId = Number(req.params.id);
-
-    if (!Number.isSafeInteger(fixtureId) || fixtureId <= 0) {
-      return res.status(400).json({
-        error: "Invalid fixture ID"
-      });
-    }
-
-    const data = await sportRequest(`/fixtures/${fixtureId}`);
-
-    if (!data.fixture) {
-      return res.status(404).json({
-        error: "Fixture not found"
-      });
-    }
-
-    res.json({
-      response: [mapFixture(data.fixture)]
-    });
-
-  } catch (error) {
-    console.error("Fixture details error:", error.message);
-
-    res.status(500).json({
-      error: "Unable to load fixture details"
-    });
-  }
-});
+// اختبار حالات المباريات من SportAPI
 app.get("/debug-sportapi", async (req, res) => {
   try {
     const date = tunisianDate();
@@ -222,6 +195,40 @@ app.get("/debug-sportapi", async (req, res) => {
     });
   }
 });
+
+// تفاصيل المباراة
+app.get("/fixture/:id", async (req, res) => {
+  try {
+    const fixtureId = Number(req.params.id);
+
+    if (!Number.isSafeInteger(fixtureId) || fixtureId <= 0) {
+      return res.status(400).json({
+        error: "Invalid fixture ID"
+      });
+    }
+
+    const data = await sportRequest(`/fixtures/${fixtureId}`);
+
+    if (!data.fixture) {
+      return res.status(404).json({
+        error: "Fixture not found"
+      });
+    }
+
+    res.json({
+      response: [mapFixture(data.fixture)]
+    });
+
+  } catch (error) {
+    console.error("Fixture details error:", error.message);
+
+    res.status(500).json({
+      error: "Unable to load fixture details"
+    });
+  }
+});
+
+// فحص السيرفر
 app.get("/health", (req, res) => {
   res.json({
     status: "OK",
@@ -230,6 +237,7 @@ app.get("/health", (req, res) => {
   });
 });
 
+// الصفحة الرئيسية
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "index.html"));
 });
