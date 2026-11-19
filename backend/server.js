@@ -164,38 +164,6 @@ app.get("/live", async (req, res) => {
   }
 });
 
-// اختبار حالات المباريات من SportAPI
-app.get("/debug-sportapi", async (req, res) => {
-  try {
-    const date = tunisianDate();
-
-    const data = await sportRequest(
-      `/fixtures/date/${date}`
-    );
-
-    const matches = Array.isArray(data.data) ? data.data : [];
-
-    res.json({
-      date,
-      total: matches.length,
-      statuses: matches.map(match => ({
-        id: match.id,
-        home: match.home_team,
-        away: match.away_team,
-        status: match.status,
-        minute: match.minute
-      }))
-    });
-
-  } catch (error) {
-    console.error("Debug error:", error.message);
-
-    res.status(500).json({
-      error: "Debug request failed"
-    });
-  }
-});
-
 // تفاصيل المباراة
 app.get("/fixture/:id", async (req, res) => {
   try {
