@@ -1,5 +1,4 @@
 
-
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -136,6 +135,12 @@ input {
   gap: 8px;
   padding: 15px;
   border-bottom: 1px solid #444;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.match:hover {
+  background: #333;
 }
 
 .match:last-child {
@@ -195,6 +200,75 @@ input {
   color: #FFD43B;
 }
 
+/* Match details */
+
+.back-btn {
+  margin-bottom: 18px;
+  background: #D71920;
+  border-color: #D71920;
+}
+
+.detail-card {
+  background: #252525;
+  border: 1px solid #444;
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 20px;
+}
+
+.detail-league {
+  text-align: center;
+  color: #FFD43B;
+  font-size: 20px;
+  margin-bottom: 8px;
+}
+
+.detail-country {
+  text-align: center;
+  color: #aaa;
+  margin-bottom: 25px;
+}
+
+.detail-teams {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 12px;
+  text-align: center;
+}
+
+.detail-team img {
+  width: 55px;
+  height: 55px;
+  object-fit: contain;
+  margin-bottom: 10px;
+}
+
+.detail-team p {
+  font-weight: bold;
+  font-size: 14px;
+}
+
+.detail-score {
+  font-size: 28px;
+  color: #FFD43B;
+  font-weight: bold;
+}
+
+.detail-status {
+  text-align: center;
+  color: #FFD43B;
+  font-weight: bold;
+  margin-top: 25px;
+}
+
+.detail-date {
+  text-align: center;
+  color: #aaa;
+  margin-top: 12px;
+  font-size: 13px;
+}
+
 footer {
   text-align: center;
   color: #888;
@@ -233,6 +307,23 @@ footer {
 
   .status {
     font-size: 11px;
+  }
+
+  .detail-card {
+    padding: 15px 10px;
+  }
+
+  .detail-team img {
+    width: 42px;
+    height: 42px;
+  }
+
+  .detail-team p {
+    font-size: 12px;
+  }
+
+  .detail-score {
+    font-size: 23px;
   }
 }
 </style>
@@ -284,6 +375,7 @@ const titleElement = document.getElementById("sectionTitle");
 const dateInput = document.getElementById("matchDate");
 
 let currentMode = "today";
+let currentView = "matches";
 let isLoading = false;
 
 function localDate() {
@@ -304,6 +396,7 @@ function setActive(buttonId) {
 
 function showToday() {
   currentMode = "today";
+  currentView = "matches";
   setActive("todayBtn");
   titleElement.textContent = "Today's Matches";
   loadMatches();
@@ -311,6 +404,7 @@ function showToday() {
 
 function showLive() {
   currentMode = "live";
+  currentView = "matches";
   setActive("liveBtn");
   titleElement.textContent = "Live Matches";
   loadMatches();
@@ -318,6 +412,7 @@ function showLive() {
 
 dateInput.addEventListener("change", () => {
   currentMode = "today";
+  currentView = "matches";
   setActive("todayBtn");
   titleElement.textContent = "Matches - " + dateInput.value;
   loadMatches();
@@ -400,7 +495,8 @@ function renderMatches(matches) {
       const status = getStatus(match);
 
       return `
-        <article class="match">
+        <article class="match"
+          onclick="openMatch(${Number(match.fixture.id)})">
 
           <div>
             <div class="team">
@@ -446,8 +542,114 @@ function renderMatches(matches) {
   }).join("");
 }
 
+/* Open match details */
+
+async function openMatch(id) {
+  if (isLoading || !Number.isFinite(id) || id <= 0) return;
+
+  currentView = "details";
+  isLoading = true;
+
+  matchesElement.innerHTML =
+    '<div class="loader">Loading match details...</div>';
+
+  try {
+    const response = await fetch("/fixture/" + id);
+    const data = await response.json();
+
+    if (!response.ok || !data.response?.length) {
+      throw new Error(data.error || "Unable to load match details");
+    }
+
+    const match = data.response[0];
+    const home = match.teams.home;
+    const away = match.teams.away;
+    const status = getStatus(match);
+
+    matchesElement.innerHTML = `
+      <button class="back-btn" onclick="backToMatches()">
+        ← Back to matches
+      </button>
+
+      <div class="detail-card">
+
+        <h2 class="detail-league">
+          ${escapeHTML(match.league.name)}
+        </h2>
+
+        <p class="detail-country">
+          ${escapeHTML(match.league.country)}
+        </p>
+
+        <div class="detail-teams">
+
+          <div class="detail-team">
+            <img src="${escapeHTML(home.logo)}"
+                 alt=""
+                 onerror="this.style.display='none'">
+            <p>${escapeHTML(home.name)}</p>
+          </div>
+
+          <div class="detail-score">
+            ${match.goals.home ?? "-"}
+            -
+            ${match.goals.away ?? "-"}
+          </div>
+
+          <div class="detail-team">
+            <img src="${escapeHTML(away.logo)}"
+                 alt=""
+                 onerror="this.style.display='none'">
+            <p>${escapeHTML(away.name)}</p>
+          </div>
+
+        </div>
+
+        <h3 class="detail-status">
+          ${escapeHTML(status.text)}
+        </h3>
+
+        <p class="detail-date">
+          ${new Date(match.fixture.date).toLocaleString()}
+        </p>
+
+      </div>
+    `;
+
+    titleElement.textContent = "Match Details";
+
+  } catch (error) {
+    matchesElement.innerHTML = `
+      <div class="message">
+        ⚠️ Unable to load match details.
+        <br>
+        ${escapeHTML(error.message)}
+        <br><br>
+        <button onclick="backToMatches()">Back to matches</button>
+      </div>
+    `;
+
+  } finally {
+    isLoading = false;
+  }
+}
+
+function backToMatches() {
+  currentView = "matches";
+
+  if (currentMode === "live") {
+    titleElement.textContent = "Live Matches";
+  } else {
+    titleElement.textContent = dateInput.value === localDate()
+      ? "Today's Matches"
+      : "Matches - " + dateInput.value;
+  }
+
+  loadMatches();
+}
+
 async function loadMatches() {
-  if (isLoading) return;
+  if (isLoading || currentView !== "matches") return;
 
   isLoading = true;
 
@@ -463,19 +665,23 @@ async function loadMatches() {
       throw new Error(data.error || "Server error");
     }
 
-    renderMatches(data.response);
+    if (currentView === "matches") {
+      renderMatches(data.response);
+    }
 
   } catch (error) {
     console.error(error);
 
-    matchesElement.innerHTML = `
-      <div class="message">
-        ⚠️ Unable to load matches.<br>
-        ${escapeHTML(error.message)}
-        <br><br>
-        <button onclick="loadMatches()">Try Again</button>
-      </div>
-    `;
+    if (currentView === "matches") {
+      matchesElement.innerHTML = `
+        <div class="message">
+          ⚠️ Unable to load matches.<br>
+          ${escapeHTML(error.message)}
+          <br><br>
+          <button onclick="loadMatches()">Try Again</button>
+        </div>
+      `;
+    }
 
   } finally {
     isLoading = false;
@@ -487,7 +693,9 @@ loadMatches();
 
 // Automatic refresh every 60 seconds
 setInterval(() => {
-  loadMatches();
+  if (currentView === "matches") {
+    loadMatches();
+  }
 }, 60000);
 
 </script>
