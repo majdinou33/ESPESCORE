@@ -120,7 +120,7 @@ function tunisianDate() {
   }).format(new Date());
 }
 
-// مباريات اليوم
+// Fixtures
 app.get("/fixtures", async (req, res) => {
   try {
     const date = req.query.date;
@@ -142,7 +142,7 @@ app.get("/fixtures", async (req, res) => {
   }
 });
 
-// المباريات المباشرة
+// Live matches
 app.get("/live", async (req, res) => {
   try {
     const data = await sportRequest(
@@ -162,59 +162,100 @@ app.get("/live", async (req, res) => {
   }
 });
 
-// تشخيص حقول الأحداث والتبديلات
+// Diagnostic: inspect detailed events for today's matches
 app.get("/debug/events", async (req, res) => {
   try {
     const date = tunisianDate();
 
-    const data = await sportRequest(
-      `/fixtures/date/${date}`
-    );
-
+    const data = await sportRequest(`/fixtures/date/${date}`);
     const matches = Array.isArray(data.data) ? data.data : [];
 
-    const results = [];
-    const allKeys = new Set();
+    const eventFields = new Set();
+    const substitutionMatches = [];
+    const matchesWithEvents = [];
+    const errors = [];
+
+    let matchesChecked = 0;
+    let eventsFound = 0;
 
     for (const match of matches) {
-      const events = Array.isArray(match.events)
-        ? match.events
-        : [];
+      if (!match.id) continue;
 
-      for (const event of events) {
-        Object.keys(event).forEach(key => allKeys.add(key));
-      }
+      try {
+        const detailData = await sportRequest(
+          `/fixtures/${Number(match.id)}`
+        );
 
-      const substitutions = events.filter(event =>
-        /sub|substitution/i.test(String(event.event_type || ""))
-      );
+        const fixture = detailData.fixture;
 
-      if (substitutions.length) {
-        results.push({
+        if (!fixture) continue;
+
+        matchesChecked++;
+
+        const events = Array.isArray(fixture.events)
+          ? fixture.events
+          : [];
+
+        if (events.length > 0) {
+          matchesWithEvents.push({
+            fixture_id: fixture.id,
+            home: fixture.home_team,
+            away: fixture.away_team,
+            events_count: events.length
+          });
+        }
+
+        for (const event of events) {
+          eventsFound++;
+
+          Object.keys(event).forEach(key => {
+            eventFields.add(key);
+          });
+
+          const eventType = String(
+            event.event_type || event.type || ""
+          ).toLowerCase();
+
+          if (
+            eventType.includes("sub") ||
+            eventType.includes("substitution")
+          ) {
+            substitutionMatches.push({
+              fixture_id: fixture.id,
+              home: fixture.home_team,
+              away: fixture.away_team,
+              event
+            });
+          }
+        }
+      } catch (error) {
+        errors.push({
           fixture_id: match.id,
-          home_team: match.home_team,
-          away_team: match.away_team,
-          substitutions
+          error: error.message
         });
       }
     }
 
     res.json({
       date,
-      matches_checked: matches.length,
-      event_fields: [...allKeys],
-      substitution_matches: results
+      matches_found: matches.length,
+      matches_checked: matchesChecked,
+      events_found: eventsFound,
+      event_fields: [...eventFields],
+      matches_with_events: matchesWithEvents,
+      substitution_matches: substitutionMatches,
+      errors
     });
 
   } catch (error) {
-    console.error("Events debug error:", error.message);
+    console.error("Debug events error:", error.message);
     res.status(500).json({
-      error: "Unable to inspect event data"
+      error: "Unable to inspect match events"
     });
   }
 });
 
-// شعارات الفرق
+// Team logos
 app.get("/team-logo/:id", async (req, res) => {
   try {
     const teamId = Number(req.params.id);
@@ -275,7 +316,7 @@ app.get("/team-logo/:id", async (req, res) => {
   }
 });
 
-// تفاصيل المباراة مع الأحداث
+// Fixture details
 app.get("/fixture/:id", async (req, res) => {
   try {
     const fixtureId = Number(req.params.id);
@@ -302,7 +343,7 @@ app.get("/fixture/:id", async (req, res) => {
   }
 });
 
-// فحص السيرفر
+// Health
 app.get("/health", (req, res) => {
   res.json({
     status: "OK",
@@ -311,7 +352,7 @@ app.get("/health", (req, res) => {
   });
 });
 
-// الصفحة الرئيسية
+// Home
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "index.html"));
 });
