@@ -13,6 +13,7 @@ const API_URL = "https://sportapi.ai/api";
 
 app.use(cors());
 app.use(express.json());
+app.use(express.static(__dirname));
 
 const logoCache = new Map();
 const LOGO_CACHE_TIME = 7 * 24 * 60 * 60 * 1000;
@@ -23,9 +24,7 @@ async function sportRequest(endpoint) {
   }
 
   const response = await fetch(`${API_URL}${endpoint}`, {
-    headers: {
-      "X-Api-Key": API_KEY
-    },
+    headers: { "X-Api-Key": API_KEY },
     signal: AbortSignal.timeout(15000)
   });
 
@@ -66,7 +65,6 @@ function mapStatus(status, minute) {
   };
 }
 
-// تحويل أحداث المباراة
 function mapEvent(event) {
   return {
     id: event.id ?? null,
@@ -85,32 +83,27 @@ function mapFixture(match) {
       date: match.kickoff_utc || match.datetime,
       status: mapStatus(match.status, match.minute)
     },
-
     league: {
       id: match.league_id,
       name: match.league_name || "Unknown League",
       country: match.league_zone || match.league_geo || ""
     },
-
     teams: {
       home: {
         id: match.home_id,
         name: match.home_team || "Home",
         logo: match.home_id ? `/team-logo/${match.home_id}` : ""
       },
-
       away: {
         id: match.away_id,
         name: match.away_team || "Away",
         logo: match.away_id ? `/team-logo/${match.away_id}` : ""
       }
     },
-
     goals: {
       home: match.home_score ?? null,
       away: match.away_score ?? null
     },
-
     events: Array.isArray(match.events)
       ? match.events.map(mapEvent)
       : []
@@ -141,9 +134,7 @@ app.get("/fixtures", async (req, res) => {
 
     const matches = Array.isArray(data.data) ? data.data : [];
 
-    res.json({
-      response: matches.map(mapFixture)
-    });
+    res.json({ response: matches.map(mapFixture) });
   } catch (error) {
     console.error("Fixtures error:", error.message);
     res.status(500).json({ error: "Unable to load matches" });
@@ -163,9 +154,7 @@ app.get("/live", async (req, res) => {
       String(match.status).toUpperCase() === "LIVE"
     );
 
-    res.json({
-      response: liveMatches.map(mapFixture)
-    });
+    res.json({ response: liveMatches.map(mapFixture) });
   } catch (error) {
     console.error("Live error:", error.message);
     res.status(500).json({ error: "Unable to load live matches" });
