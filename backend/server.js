@@ -65,8 +65,10 @@ function mapStatus(status, minute) {
   };
 }
 
+// الاحتفاظ بجميع بيانات الحدث الأصلية
 function mapEvent(event) {
   return {
+    ...event,
     id: event.id ?? null,
     type: event.event_type || "other",
     team: event.team_side || "",
@@ -215,13 +217,14 @@ app.get("/team-logo/:id", async (req, res) => {
     res.set("Cache-Control", "public, max-age=604800");
     res.set("Content-Type", contentType);
     res.send(buffer);
+
   } catch (error) {
     console.error("Team logo error:", error.message);
     res.status(502).end();
   }
 });
 
-// تفاصيل المباراة مع الأحداث
+// تفاصيل المباراة مع جميع بيانات الأحداث
 app.get("/fixture/:id", async (req, res) => {
   try {
     const fixtureId = Number(req.params.id);
@@ -239,6 +242,7 @@ app.get("/fixture/:id", async (req, res) => {
     res.json({
       response: [mapFixture(data.fixture)]
     });
+
   } catch (error) {
     console.error("Fixture details error:", error.message);
     res.status(500).json({
