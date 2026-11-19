@@ -14,6 +14,10 @@ const API_URL = "https://sportapi.ai/api";
 app.use(cors());
 app.use(express.json());
 
+// تخزين الشعارات مؤقتاً
+const logoCache = new Map();
+const LOGO_CACHE_TIME = 7 * 24 * 60 * 60 * 1000;
+
 async function sportRequest(endpoint) {
   if (!API_KEY) {
     throw new Error("SPORTAPI_KEY is not configured");
@@ -81,12 +85,17 @@ function mapFixture(match) {
       home: {
         id: match.home_id,
         name: match.home_team || "Home",
-        logo: "about:blank"
+        logo: match.home_id
+          ? `/team-logo/${match.home_id}`
+          : ""
       },
+
       away: {
         id: match.away_id,
         name: match.away_team || "Away",
-        logo: "about:blank"
+        logo: match.away_id
+          ? `/team-logo/${match.away_id}`
+          : ""
       }
     },
 
@@ -161,6 +170,73 @@ app.get("/live", async (req, res) => {
     res.status(500).json({
       error: "Unable to load live matches"
     });
+  }
+});
+
+// شعارات الفرق
+app.get("/team-logo/:id", async (req, res) => {
+  try {
+    const teamId = Number(req.params.id);
+
+    if (!Number.isSafeInteger(teamId) || teamId <= 0) {
+      return res.status(400).end();
+    }
+
+    const cached = logoCache.get(teamId);
+
+    if (cached && cached.expiresAt > Date.now()) {
+      res.set("Cache-Control", "public, max-age=604800");
+      res.set("Content-Type", cached.contentType);
+      return res.send(cached.buffer);
+    }
+
+    if (!API_KEY) {
+      throw new Error("SPORTAPI_KEY is not configured");
+    }
+
+    const response = await fetch(
+      `${API_URL}/teams/${teamId}/logo`,
+      {
+        headers: {
+          "X-Api-Key": API_KEY
+        },
+        signal: AbortSignal.timeout(15000)
+      }
+    );
+
+    if (!response.ok) {
+      return res.status(404).end();
+    }
+
+    const contentType =
+      response.headers.get("content-type") || "image/png";
+
+    if (!contentType.startsWith("image/")) {
+      return res.status(502).end();
+    }
+
+    const buffer = Buffer.from(await response.arrayBuffer());
+
+    // الاحتفاظ بآخر 500 شعار كحد أقصى
+    if (logoCache.size >= 500) {
+      const firstKey = logoCache.keys().next().value;
+      logoCache.delete(firstKey);
+    }
+
+    logoCache.set(teamId, {
+      buffer,
+      contentType,
+      expiresAt: Date.now() + LOGO_CACHE_TIME
+    });
+
+    res.set("Cache-Control", "public, max-age=604800");
+    res.set("Content-Type", contentType);
+
+    res.send(buffer);
+
+  } catch (error) {
+    console.error("Team logo error:", error.message);
+    res.status(502).end();
   }
 });
 
